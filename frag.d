@@ -21,13 +21,11 @@
 // -- IMPORTS
 
 import core.stdc.stdlib : exit;
-import core.time : msecs, Duration;
 import std.conv : to;
-import std.datetime : SysTime;
-import std.file : dirEntries, exists, getAttributes, getTimes, mkdir, mkdirRecurse, read, readText, remove, rmdir, setAttributes, setTimes, write, PreserveAttributes, SpanMode;
-import std.path : absolutePath, baseName, dirName, globMatch;
-import std.stdio : writeln, File;
-import std.string : endsWith, indexOf, join, lastIndexOf, replace, split, startsWith, stripRight, toLower;
+import std.file : read, readText, write;
+import std.path : absolutePath;
+import std.stdio : writeln;
+import std.string : endsWith, lastIndexOf, replace, split, startsWith, toLower;
 
 // -- FUNCTIONS
 
@@ -134,144 +132,6 @@ string GetPhysicalPath(
 
 // ~~
 
-string GetLogicalPath(
-    string path
-    )
-{
-    return path.replace( '\\', '/' );
-}
-
-// ~~
-
-string GetFolderPath(
-    string file_path
-    )
-{
-    long
-        slash_character_index;
-
-    slash_character_index = file_path.lastIndexOf( '/' );
-
-    if ( slash_character_index >= 0 )
-    {
-        return file_path[ 0 .. slash_character_index + 1 ];
-    }
-    else
-    {
-        return "";
-    }
-}
-
-// ~~
-
-string GetFileName(
-    string file_path
-    )
-{
-    long
-        slash_character_index;
-
-    slash_character_index = file_path.lastIndexOf( '/' );
-
-    if ( slash_character_index >= 0 )
-    {
-        return file_path[ slash_character_index + 1 .. $ ];
-    }
-    else
-    {
-        return file_path;
-    }
-}
-
-// ~~
-
-bool IsEmptyFolder(
-    string folder_path
-    )
-{
-    bool
-        it_is_empty_folder;
-
-    try
-    {
-        it_is_empty_folder = true;
-
-        foreach ( folder_entry; dirEntries( folder_path, SpanMode.shallow ) )
-        {
-            it_is_empty_folder = false;
-
-            break;
-        }
-    }
-    catch ( Exception exception )
-    {
-        Abort( "Can't read folder : " ~ folder_path, exception );
-    }
-
-    return it_is_empty_folder;
-}
-
-// ~~
-
-void CreateFolder(
-    string folder_path
-    )
-{
-    try
-    {
-        if ( folder_path != ""
-             && folder_path != "/"
-             && !folder_path.exists() )
-        {
-            writeln( "Creating folder : ", folder_path );
-
-            folder_path.GetPhysicalPath().mkdirRecurse();
-        }
-    }
-    catch ( Exception exception )
-    {
-        Abort( "Can't create folder : " ~ folder_path, exception );
-    }
-}
-
-// ~~
-
-void RemoveFolder(
-    string folder_path
-    )
-{
-    writeln( "Removing folder : ", folder_path );
-
-    try
-    {
-        folder_path.GetPhysicalPath().rmdir();
-    }
-    catch ( Exception exception )
-    {
-        Abort( "Can't create folder : " ~ folder_path, exception );
-    }
-}
-
-// ~~
-
-void RemoveFile(
-    string file_path
-    )
-{
-    writeln( "Removing file : ", file_path );
-
-    try
-    {
-        file_path.GetPhysicalPath().remove();
-    }
-    catch ( Exception exception )
-    {
-        Abort( "Can't remove file : " ~ file_path, exception );
-    }
-}
-
-// ~~
-
 ubyte[] ReadByteArray(
     string file_path
     )
@@ -300,8 +160,6 @@ void WriteByteArray(
     ubyte[] file_byte_array
     )
 {
-    CreateFolder( file_path.GetPhysicalPath().GetFolderPath() );
-
     writeln( "Writing file : ", file_path );
 
     try
@@ -344,8 +202,6 @@ void WriteText(
     string file_text
     )
 {
-    CreateFolder( file_path.GetFolderPath() );
-
     writeln( "Writing file : ", file_path );
 
     try
@@ -396,35 +252,39 @@ void SplitFile(
     string[]
         input_file_line_array;
 
-    output_file_index = 0;
+    input_file_text = ReadText( input_file_path ).replace( "\r", "" );
+    input_file_line_array = input_file_text.split( ";\n" );
 
-    input_file_text = ReadText( input_file_path );
-    input_file_line_array = input_file_path.split( ";\n" );
-
-    foreach ( input_file_line_index, input_file_line; input_file_line_array )
+    foreach ( input_file_line_index, ref input_file_line; input_file_line_array )
     {
         if ( input_file_line_index < input_file_line_array.length - 1 )
         {
-            output_file_line = input_file_line ~ ";\n";
+            input_file_line ~= ";\n";
         }
+    }
 
-        if ( output_file_line.length < maximum_byte_count )
+    output_file_index = 0;
+    output_file_text = "";
+
+    foreach ( input_file_line; input_file_line_array )
+    {
+        if ( input_file_line.length < maximum_byte_count )
         {
-            if ( output_file_text.length + output_file_line.length <= maximum_byte_count )
+            if ( output_file_text.length + input_file_line.length <= maximum_byte_count )
             {
-                output_file_text ~= output_file_line;
+                output_file_text ~= input_file_line;
             }
             else
             {
                 WriteFile( input_file_path, output_file_text, output_file_index );
 
-                output_file_text = output_file_line;
+                output_file_text = input_file_line;
                 ++output_file_index;
             }
         }
         else
         {
-            Abort( "Line too long : " ~ output_file_line );
+            Abort( "Line too long : " ~ input_file_line );
         }
     }
 
@@ -454,20 +314,15 @@ void JoinFiles(
     string output_file_path
     )
 {
-    string
-        output_file_text;
+    ubyte[]
+        output_file_byte_array;
 
     foreach ( input_file_path; input_file_path_array )
     {
-        output_file_text ~= ReadText( input_file_path );
-
-        if ( !output_file_text.endsWith( '\n' ) )
-        {
-            output_file_text ~= '\n';
-        }
+        output_file_byte_array ~= ReadByteArray( input_file_path );
     }
 
-    output_file_path.WriteText( output_file_text );
+    output_file_path.WriteByteArray( output_file_byte_array );
 }
 
 // ~~
@@ -512,6 +367,8 @@ void main(
         writeln( "Usage :" );
         writeln( "    frag [options]" );
         writeln( "Options :" );
+        writeln( "    --sql" );
+        writeln( "    --table" );
         writeln( "    --split <size> <file_path>" );
         writeln( "    --join" );
         writeln( "Examples :" );

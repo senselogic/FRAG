@@ -23,8 +23,9 @@ frag [options]
 ### Options
 
 ```
---split <size> : split scripts into files under this size
---join : joint scripts
+--semicolon
+--split <maximum size> : split files
+--join : join files
 ```
 
 ### Size suffixes
@@ -39,16 +40,20 @@ g : gigabyte
 ### Examples
 
 ```bash
-frag --split 800k script.sql
+frag --semicolon --split 800k script.sql
 ```
 
-Splits the script into files under 800k
+Splits the file.
 
 ```bash
 frag --join script.1.sql script.2.sql script.3.sql script.sql
 ```
 
-Join those scripts
+Joins those files.
+
+## Limitations
+
+*   Files are split and joined in memory.
 
 ## Version
 
